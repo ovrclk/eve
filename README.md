@@ -1,4 +1,6 @@
-<img src="doc/logos/Eve-logos_black.png" width=150>
+<center>
+<img src="doc/logos/Eve-logos_transparent.svg" width=150>
+</center>
 
 Second human in Genesis, best friend of [Adam's](github.com/boz). Eve is a tool that simplifies deploying applications on Akash.
 
@@ -6,6 +8,7 @@ Second human in Genesis, best friend of [Adam's](github.com/boz). Eve is a tool 
 eve --help
 
 Eve is a tool that simplifies deploying applications on Akash
+
 Usage:
   eve [command]
 
