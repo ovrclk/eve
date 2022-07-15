@@ -6,4 +6,7 @@ test:
 build:
 	go build -o $(BIN_DIR)/eve
 
-.PHONY: build
+install:
+	go install 
+
+.PHONY: build test install
