@@ -16,7 +16,8 @@ func main() {
 }
 
 func run() int {
-	err := cmd.NewRootCMD().Execute()
+	ctx, cancel := newContext()
+	err := cmd.NewRootCMD(ctx, cancel).Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		return 1

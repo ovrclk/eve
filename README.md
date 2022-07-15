@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="doc/logos/Eve-logos_transparent.svg" width="300">
+  <img src="doc/logos/Eve-logos_black_whitebg.png" width="300">
 </p>
 
 <div align="center">
