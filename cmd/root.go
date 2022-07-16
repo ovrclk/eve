@@ -30,6 +30,7 @@ func init() {
 	globalFlags = &GlobalFlags{}
 }
 
+// NewDeploy creates a new command that deploys the given application
 func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:               "eve",
@@ -65,6 +66,7 @@ func NewInit(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	return initCmd
 }
 
+// NewLogs creates a new command that logs the output of the given command
 func NewLogs(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	logsCmd := &cobra.Command{
 		Use:   "logs",
@@ -131,19 +133,19 @@ func NewStatus(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	return statusCmd
 }
 
-func runStatus(ctx context.Context, cancel context.CancelFunc) error {
-	provider, err := readvar("PROVIDER")
-	if err != nil {
+func runStatus(ctx context.Context, cancel context.CancelFunc) (err error) {
+	var provider, dseq string
+
+	if provider, err = readvar("PROVIDER"); err != nil {
 		return err
 	}
 
-	dseq, err := readvar("DSEQ")
-	if err != nil {
+	if dseq, err = readvar("DSEQ"); err != nil {
 		return err
 	}
 
+	// fetch the lease status
 	c := []string{"provider", "lease-status", "--provider", provider, "--dseq", dseq, "--from", "deploy"}
-
 	logger.Debug("runStatus: ", c)
 
 	cmd := exec.CommandContext(ctx, "akash", c...)
@@ -152,9 +154,9 @@ func runStatus(ctx context.Context, cancel context.CancelFunc) error {
 		fmt.Println("runStatus error: ", err)
 		return err
 	}
-
 	logger.Debug("runStatus output: ", string(out))
 
+	// unmarshal the lease status JSON into a map
 	var result map[string]interface{}
 	if err := json.Unmarshal(out, &result); err != nil { // unmarshal the output into a map
 		return errors.Wrapf(err, "failed to unmarshal output")
@@ -203,6 +205,7 @@ func varExists(name string) bool {
 	return false
 }
 
+// readvar reads a variable from the state file
 func readvar(name string) (string, error) {
 	logger.Debug("readvar: ", name)
 	p := path.Join(globalFlags.Path, globalFlags.StateDirName, name) // path to the variable
@@ -217,6 +220,7 @@ func readvar(name string) (string, error) {
 	return strings.TrimSuffix(string(b), "\n"), nil
 }
 
+// writevar writes a variable to the state file
 func writevar(name, value string) error {
 	logger.Debug("writevar: ", name)
 	p := path.Join(globalFlags.Path, globalFlags.StateDirName, name) // path to the variable

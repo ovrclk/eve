@@ -84,20 +84,22 @@ func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlag
 		c = append(c, "--env", k+"="+v)
 	}
 
-	logger.Debugf("runPack running: %s", strings.Join(c, " "))
+	logger.Debugf("running pack command: %s", strings.Join(c, " "))
 
+	// run the command with the context
 	cmd := exec.CommandContext(ctx, "pack", c...)
 	r, _ := cmd.StdoutPipe()
 	err = cmd.Start()
 	if err != nil {
 		return errors.Wrap(err, "error starting pack")
 	}
-
+	// TODO: add a timeout to the context
+	// scan the output and print it to the console
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		fmt.Println(scanner.Text())
 	}
-
+	// wait for the command to finish
 	if err := cmd.Wait(); err != nil {
 		logger.Errorf("error: %v", err)
 		return errors.Wrap(err, "error waiting for pack")
