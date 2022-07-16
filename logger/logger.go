@@ -14,15 +14,17 @@ import (
 
 var defaultLogger *Logger
 
+// Level is the level of logging.
 type Level int
 
 const (
-	LevelDebug Level = iota
-	LevelInfo
-	LevelWarn
-	LevelError
+	LevelDebug Level = iota // Debug level.
+	LevelInfo               // Info level.
+	LevelWarn               // Warn level.
+	LevelError              // Error level.
 )
 
+// Logger is a simple logger that logs to a writer.
 type Logger struct {
 	out   io.Writer
 	level Level
@@ -64,6 +66,7 @@ func Errorf(format string, v ...interface{}) {
 	defaultLogger.Errorf(format, v...)
 }
 
+// FromEnv creates a logger from the environment variable LOG_LEVEL.
 func FromEnv(out io.Writer) *Logger {
 	return &Logger{
 		out:   out,
@@ -90,7 +93,6 @@ func levelFromEnv() Level {
 }
 
 func (l *Logger) debug(v ...interface{}) {
-
 	if str, ok := v[0].(string); ok {
 		byteString := []byte(str)
 		if json.Valid(byteString) {
@@ -98,17 +100,10 @@ func (l *Logger) debug(v ...interface{}) {
 			err := json.Indent(&prettyJSON, byteString, "", "  ")
 			if err == nil {
 				quick.Highlight(l.out, prettyJSON.String()+"\n", "json", "terminal", "monokai")
-
-				return
 			}
 		}
 	}
-
-	fmt.Fprintln(
-		l.out,
-		aurora.Faint("DEBUG"),
-		fmt.Sprint(v...),
-	)
+	fmt.Fprintln(l.out, aurora.Faint("DEBUG"), fmt.Sprint(v...))
 }
 
 func (l *Logger) Debug(v ...interface{}) {
@@ -124,11 +119,7 @@ func (l *Logger) Debugf(format string, v ...interface{}) {
 }
 
 func (l *Logger) info(v ...interface{}) {
-	fmt.Fprintln(
-		l.out,
-		aurora.Faint("INFO"),
-		fmt.Sprint(v...),
-	)
+	fmt.Fprintln(l.out, aurora.Faint("INFO"), fmt.Sprint(v...))
 }
 
 func (l *Logger) Info(v ...interface{}) {
@@ -144,11 +135,7 @@ func (l *Logger) Infof(format string, v ...interface{}) {
 }
 
 func (l *Logger) warn(v ...interface{}) {
-	fmt.Fprintln(
-		l.out,
-		aurora.Yellow("WARN"),
-		fmt.Sprint(v...),
-	)
+	fmt.Fprintln(l.out, aurora.Yellow("WARN"), fmt.Sprint(v...))
 }
 
 func (l *Logger) Warn(v ...interface{}) {
@@ -164,11 +151,7 @@ func (l *Logger) Warnf(format string, v ...interface{}) {
 }
 
 func (l *Logger) error(v ...interface{}) {
-	fmt.Fprintln(
-		l.out,
-		aurora.Red("ERROR"),
-		fmt.Sprint(v...),
-	)
+	fmt.Fprintln(l.out, aurora.Red("ERROR"), fmt.Sprint(v...))
 }
 
 func (l *Logger) Error(v ...interface{}) {

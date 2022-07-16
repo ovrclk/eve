@@ -198,6 +198,7 @@ func runProviderSendManifest(ctx context.Context, cancel context.CancelFunc, pro
 	return nil
 }
 
+// varExists checks if the given variable exists in the environment
 func varExists(name string) bool {
 	if val, err := readvar(name); err == nil && val != "" { // if the variable exists and is not empty return true
 		return true
