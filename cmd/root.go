@@ -1,22 +1,32 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path"
 	"strings"
 
+	"github.com/gosuri/eve/logger"
 	"github.com/gosuri/eve/util/fsutil"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
-var homeDir = ".eve"
+var (
+	defaultStateDir = ".akash"
+	globalFlags     *GlobalFlags
+)
 
-const stateDir = ".akash"
+type GlobalFlags struct {
+	Path     string
+	StateDir string
+}
+
+func init() {
+	globalFlags = &GlobalFlags{}
+}
 
 func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	rootCmd := &cobra.Command{
@@ -24,7 +34,8 @@ func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 		Short: "Eve is a tool that simplifies deploying applications on Akash",
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&homeDir, "home", "d", "", "Home directory, defaults to "+homeDir)
+	rootCmd.PersistentFlags().StringVarP(&globalFlags.Path, "path", "p", ".", "Path to the project")
+	rootCmd.PersistentFlags().StringVarP(&globalFlags.StateDir, "state-dir", "s", defaultStateDir, "Path to the state directory")
 
 	rootCmd.AddCommand(
 		NewInitCMD(ctx, cancel),
@@ -34,22 +45,6 @@ func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 		NewDeployCMD(ctx, cancel),
 	)
 	return rootCmd
-}
-
-func NewPackCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-	var image string
-	packCmd := &cobra.Command{
-		Use:   "pack",
-		Short: "Pack your project into a container using buildpacks",
-		Run: func(cmd *cobra.Command, args []string) {
-			if err := runPack(ctx, cancel, image); err != nil {
-				fmt.Println("error: ", err)
-				return
-			}
-		},
-	}
-	packCmd.Flags().StringVarP(&image, "image", "i", "", "Image to use for the container")
-	return packCmd
 }
 
 func NewInitCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
@@ -181,6 +176,8 @@ func runStatus(ctx context.Context, cancel context.CancelFunc) error {
 	}
 
 	c := []string{"provider", "lease-status", "--provider", provider, "--dseq", dseq, "--from", "deploy"}
+
+	logger.Debug("runStatus: ", c)
 	cmd := exec.CommandContext(ctx, "akash", c...)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
@@ -193,11 +190,12 @@ func runStatus(ctx context.Context, cancel context.CancelFunc) error {
 
 func runUpdateDeployment(ctx context.Context, cancel context.CancelFunc, dseq string) error {
 	c := []string{"tx", "deployment", "update", "--dseq", dseq, "--from", "deploy", "-y", "sdl.yml"}
+	logger.Debug("runUpdateDeployment: ", c)
 	cmd := exec.CommandContext(ctx, "akash", c...)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
 	if err != nil {
-		fmt.Println("runUpdate Deploy error: ", err)
+		logger.Error("runUpdate Deploy error: ", err)
 		return err
 	}
 	return nil
@@ -205,54 +203,49 @@ func runUpdateDeployment(ctx context.Context, cancel context.CancelFunc, dseq st
 
 func runProviderSendManifest(ctx context.Context, cancel context.CancelFunc, provider string, dseq string) error {
 	c := []string{"provider", "send-manifest", "--provider", provider, "--dseq", dseq, "--from", "deploy", "sdl.yml"}
+	logger.Debug("runProviderSendManifest", c)
 	cmd := exec.CommandContext(ctx, "akash", c...)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
 	if err != nil {
-		fmt.Println("error: ", err)
-		return err
+		logger.Error("runProviderSendManifest error: ", err)
+		return errors.Wrapf(err, "Unable to upload manifest to provider %s, for dseq %s", provider, dseq)
 	}
 	return nil
 }
 
-func runPack(ctx context.Context, cancel context.CancelFunc, image string) error {
-	c := []string{"build", "ghcr.io/" + image, "--builder", "heroku/buildpacks:20", "--env", "NODE_ENV=production"}
-	cmd := exec.CommandContext(ctx, "pack", c...)
-
-	r, _ := cmd.StdoutPipe()
-	err := cmd.Start()
-	if err != nil {
-		fmt.Println("error: ", err)
-		return err
+func varExists(name string) bool {
+	if val, err := readvar(name); err == nil && val != "" { // if the variable exists and is not empty return true
+		return true
 	}
-
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		fmt.Println(scanner.Text())
-	}
-
-	if err := cmd.Wait(); err != nil {
-
-		fmt.Println("error: ", err)
-		return err
-	}
-	return nil
+	return false
 }
 
 func readvar(name string) (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	p := path.Join(wd, stateDir, name)
+	logger.Debug("readvar: ", name)
+	p := path.Join(globalFlags.Path, globalFlags.StateDir, name) // path to the variable
 	if !fsutil.FileExists(p) {
-		return "", fmt.Errorf("file missing: %s", p)
-	}
+		return "", errors.Errorf("file missing: %s", p)
+	} // if the file does not exist, return an error
 
 	b, err := ioutil.ReadFile(p)
 	if err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "failed to read file %s", p)
 	}
 	return strings.TrimSuffix(string(b), "\n"), nil
+}
+
+func writevar(name, value string) error {
+	logger.Debug("writevar: ", name)
+	p := path.Join(globalFlags.Path, globalFlags.StateDir, name) // path to the variable
+
+	if err := ioutil.WriteFile(p, []byte(value), 0644); err != nil {
+		logger.Error("writevar error: ", err)
+		return errors.Wrapf(err, "failed to write file %s", p)
+	}
+	return nil
+}
+
+func stringArrayHelp(name string) string {
+	return fmt.Sprintf("\nRepeat for each %s in order (comma-separated lists not accepted)", name)
 }
