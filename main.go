@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
 
 	"github.com/gosuri/eve/cmd"
+	"github.com/gosuri/eve/logger"
 )
 
 func main() {
@@ -17,9 +17,9 @@ func main() {
 
 func run() int {
 	ctx, cancel := newContext()
-	err := cmd.NewRootCMD(ctx, cancel).Execute()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+	defer cancel()
+	if err := cmd.NewRootCMD(ctx, cancel).Execute(); err != nil {
+		logger.Debugf("%+v", err)
 		return 1
 	}
 	return 0
@@ -30,6 +30,5 @@ func newContext() (context.Context, context.CancelFunc) {
 	if runtime.GOOS != "windows" {
 		signals = append(signals, syscall.SIGTERM)
 	}
-
 	return signal.NotifyContext(context.Background(), signals...)
 }

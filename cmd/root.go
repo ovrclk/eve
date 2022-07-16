@@ -43,6 +43,7 @@ func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 		NewPackCMD(ctx, cancel),
 		NewStatusCMD(ctx, cancel),
 		NewDeployCMD(ctx, cancel),
+		NewPublish(ctx, cancel),
 	)
 	return rootCmd
 }
@@ -73,11 +74,11 @@ func NewStatusCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "View the status of your application",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := runStatus(ctx, cancel); err != nil {
-				fmt.Println("error: ", err)
-				return
+				return err
 			}
+			return nil
 		},
 	}
 	return statusCmd
@@ -87,31 +88,25 @@ func NewDeployCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command
 	deployCmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy your application",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Deploying Eve")
-
+		RunE: func(cmd *cobra.Command, args []string) error {
 			dseq, err := readvar("DSEQ")
 			if err != nil {
-				fmt.Println("error: ", err)
-				return
+				return err
 			}
 
 			provider, err := readvar("PROVIDER")
 			if err != nil {
-				fmt.Println("error: ", err)
-				return
+				return err
 			}
 
 			if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
-				fmt.Println("error: ", err)
-				return
+				return err
 			}
 
 			if err = runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
-				fmt.Println("error: ", err)
-				return
+				return err
 			}
-
+			return nil
 		},
 	}
 	deployCmd.AddCommand(NewSendManifestCMD(ctx, cancel), NewUpdateDeploymentCMD(ctx, cancel))

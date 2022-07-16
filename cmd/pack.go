@@ -18,23 +18,25 @@ import (
 
 var DefaultBuilder = "heroku/buildpacks:20"
 
+// PackFlags contains the flags for the pack command
 type PackFlags struct {
-	Env      []string
-	EnvFiles []string
-	Builder  string
-	Image    string
+	Env      []string // Build-time environment variable, in the form 'VAR=VALUE' or 'VAR'.
+	EnvFiles []string // Build-time environment variables file
+	Builder  string   // Builder to use for building the image
+	Image    string   // Name of the image to build
 }
 
+// NewPackCommand creates a new pack command
 func NewPackCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	packFlags := &PackFlags{}
 	cmd := &cobra.Command{
 		Use:   "pack",
 		Short: "Pack your project into a container using buildpacks",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := runPack(ctx, cancel, packFlags); err != nil {
-				logger.Errorf("error: %v", err)
-				return
+				return err
 			}
+			return nil
 		},
 	}
 	cmd.Flags().StringArrayVarP(&packFlags.Env, "env", "e", []string{}, "Build-time environment variable, in the form 'VAR=VALUE' or 'VAR'.\nWhen using latter value-less form, value will be taken from current\n  environment at the time this command is executed.\nThis flag may be specified multiple times and will override\n  individual values defined by --env-file."+stringArrayHelp("env")+"\nNOTE: These are NOT available at image runtime.")
@@ -65,18 +67,19 @@ func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlag
 		} else {
 			// if BUILDER is not set, use the default one
 			packFlags.Builder = DefaultBuilder
-
 			// write the default builder to the state directory
 			writevar("BUILDER", packFlags.Builder)
 		}
 	}
 
+	// construct the buildpack command
 	c := []string{"build", packFlags.Image, "--builder", packFlags.Builder}
 	env, err := parseEnv(packFlags.EnvFiles, packFlags.Env)
 	if err != nil {
 		return errors.Wrap(err, "error parsing environment variables")
 	}
 
+	// add the environment variables to the command
 	for k, v := range env {
 		c = append(c, "--env", k+"="+v)
 	}
@@ -84,10 +87,8 @@ func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlag
 	logger.Debugf("runPack running: %s", strings.Join(c, " "))
 
 	cmd := exec.CommandContext(ctx, "pack", c...)
-
 	r, _ := cmd.StdoutPipe()
 	err = cmd.Start()
-
 	if err != nil {
 		return errors.Wrap(err, "error starting pack")
 	}
@@ -104,6 +105,7 @@ func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlag
 	return nil
 }
 
+// parseEnv parses the environment variables from the env-file and env flags
 func parseEnv(envFiles []string, envVars []string) (map[string]string, error) {
 	env := map[string]string{}
 	for _, envFile := range envFiles {
@@ -122,6 +124,7 @@ func parseEnv(envFiles []string, envVars []string) (map[string]string, error) {
 	return env, nil
 }
 
+// parseEnvFile parses the environment variables from the path to the filename
 func parseEnvFile(filename string) (map[string]string, error) {
 	out := make(map[string]string)
 	f, err := ioutil.ReadFile(filepath.Clean(filename))
@@ -138,6 +141,7 @@ func parseEnvFile(filename string) (map[string]string, error) {
 	return out, nil
 }
 
+// addEnvVar adds the environment variable to the map
 func addEnvVar(env map[string]string, item string) map[string]string {
 	arr := strings.SplitN(item, "=", 2)
 	if len(arr) > 1 {
