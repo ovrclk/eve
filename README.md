@@ -9,7 +9,7 @@
 <br/><br/>
 
 ```
-$ eve --help
+$ eve help
 
 Eve is a tool that simplifies deploying applications on Akash
 
@@ -18,13 +18,18 @@ Usage:
 
 Available Commands:
   actions     Manage your Github actions
-  completion  Generate the autocompletion script for the specified shell
+  deploy      Deploy your application
   help        Help about any command
   init        Initialize eve in the current directory
+  logs        View the logs of your application
   pack        Pack your project into a container using buildpacks
+  publish     Publish and version your image
+  status      View the status of your application
 
 Flags:
-  -h, --help   help for eve
+  -h, --help               help for eve
+      --path string        Path to the project, it defaults to the current directory
+      --state-dir string   Path to the state directory relative to the project path (default ".akash")
 
 Use "eve [command] --help" for more information about a command.
 ```

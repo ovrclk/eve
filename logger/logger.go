@@ -72,12 +72,12 @@ func FromEnv(out io.Writer) *Logger {
 }
 
 func levelFromEnv() Level {
-	lit, ok := os.LookupEnv("LOG_LEVEL")
+	lvl, ok := os.LookupEnv("LOG_LEVEL")
 	if !ok {
-		lit = "warn"
+		lvl = "warn"
 	}
 
-	switch strings.ToLower(lit) {
+	switch strings.ToLower(lvl) {
 	default:
 		return LevelInfo
 	case "debug":

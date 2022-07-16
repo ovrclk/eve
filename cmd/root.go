@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gosuri/eve/logger"
 	"github.com/gosuri/eve/util/fsutil"
+	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -20,8 +22,8 @@ var (
 )
 
 type GlobalFlags struct {
-	Path     string
-	StateDir string
+	Path         string
+	StateDirName string
 }
 
 func init() {
@@ -30,25 +32,29 @@ func init() {
 
 func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "eve",
-		Short: "Eve is a tool that simplifies deploying applications on Akash",
+		Use:               "eve",
+		Short:             "Eve is a tool that simplifies deploying applications on Akash",
+		Long:              "",
+		Example:           "",
+		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&globalFlags.Path, "path", "p", ".", "Path to the project")
-	rootCmd.PersistentFlags().StringVarP(&globalFlags.StateDir, "state-dir", "s", defaultStateDir, "Path to the state directory")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.Path, "path", "", "Path to the project, it defaults to the current directory")
+	rootCmd.PersistentFlags().StringVar(&globalFlags.StateDirName, "state-dir", defaultStateDir, "Path to the state directory relative to the project path")
 
 	rootCmd.AddCommand(
-		NewInitCMD(ctx, cancel),
-		NewActionsCMD(ctx, cancel),
-		NewPackCMD(ctx, cancel),
-		NewStatusCMD(ctx, cancel),
-		NewDeployCMD(ctx, cancel),
+		NewInit(ctx, cancel),
+		NewActions(ctx, cancel),
+		NewPack(ctx, cancel),
+		NewStatus(ctx, cancel),
+		NewDeploy(ctx, cancel),
 		NewPublish(ctx, cancel),
+		NewLogs(ctx, cancel),
 	)
 	return rootCmd
 }
 
-func NewInitCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+func NewInit(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	initCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize eve in the current directory",
@@ -59,7 +65,48 @@ func NewInitCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	return initCmd
 }
 
-func NewActionsCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+func NewLogs(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+	logsCmd := &cobra.Command{
+		Use:   "logs",
+		Short: "View the logs of your application",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := runLogs(ctx, cancel); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	return logsCmd
+}
+
+func runLogs(ctx context.Context, cancel context.CancelFunc) error {
+	provider, err := readvar("PROVIDER")
+	if err != nil {
+		return err
+	}
+
+	dseq, err := readvar("DSEQ")
+	if err != nil {
+		return err
+	}
+
+	c := []string{"provider", "logs", "--provider", provider, "--dseq", dseq, "--from", "deploy"}
+
+	logger.Debug("runLogs: ", c)
+
+	cmd := exec.CommandContext(ctx, "akash", c...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("runLogs error: ", err)
+		return err
+	}
+
+	logger.Debug("runLogs output: ", string(out))
+
+	return nil
+}
+
+func NewActions(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	actionsCmd := &cobra.Command{
 		Use:   "actions",
 		Short: "Manage your Github actions",
@@ -70,7 +117,7 @@ func NewActionsCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Comman
 	return actionsCmd
 }
 
-func NewStatusCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+func NewStatus(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "View the status of your application",
@@ -82,81 +129,6 @@ func NewStatusCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command
 		},
 	}
 	return statusCmd
-}
-
-func NewDeployCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-	deployCmd := &cobra.Command{
-		Use:   "deploy",
-		Short: "Deploy your application",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			dseq, err := readvar("DSEQ")
-			if err != nil {
-				return err
-			}
-
-			provider, err := readvar("PROVIDER")
-			if err != nil {
-				return err
-			}
-
-			if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
-				return err
-			}
-
-			if err = runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
-				return err
-			}
-			return nil
-		},
-	}
-	deployCmd.AddCommand(NewSendManifestCMD(ctx, cancel), NewUpdateDeploymentCMD(ctx, cancel))
-	return deployCmd
-}
-
-func NewSendManifestCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-	updateManifestCmd := &cobra.Command{
-		Use:   "update-manifest",
-		Short: "Update the manifest of your application",
-		Run: func(cmd *cobra.Command, args []string) {
-			dseq, err := readvar("DSEQ")
-			if err != nil {
-				fmt.Println("error: ", err)
-			}
-
-			provider, err := readvar("PROVIDER")
-			if err != nil {
-				fmt.Println("error: ", err)
-			}
-
-			if err := runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
-				fmt.Println("error: ", err)
-				return
-			}
-
-			fmt.Println("Updating manifest")
-		},
-	}
-	return updateManifestCmd
-}
-
-func NewUpdateDeploymentCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-	updateDeploymentCmd := &cobra.Command{
-		Use:   "update-deployment",
-		Short: "Update the deployment of your application",
-		Run: func(cmd *cobra.Command, args []string) {
-			dseq, err := readvar("DSEQ")
-			if err != nil {
-				fmt.Println("error: ", err)
-				return
-			}
-
-			if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
-				fmt.Println("error: ", err)
-				return
-			}
-		},
-	}
-	return updateDeploymentCmd
 }
 
 func runStatus(ctx context.Context, cancel context.CancelFunc) error {
@@ -173,13 +145,28 @@ func runStatus(ctx context.Context, cancel context.CancelFunc) error {
 	c := []string{"provider", "lease-status", "--provider", provider, "--dseq", dseq, "--from", "deploy"}
 
 	logger.Debug("runStatus: ", c)
+
 	cmd := exec.CommandContext(ctx, "akash", c...)
 	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
 	if err != nil {
 		fmt.Println("runStatus error: ", err)
 		return err
 	}
+
+	logger.Debug("runStatus output: ", string(out))
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(out, &result); err != nil { // unmarshal the output into a map
+		return errors.Wrapf(err, "failed to unmarshal output")
+	}
+	logger.Debugf("+%v", result)
+
+	tab := uitable.New().AddRow("SERVICE", "AVAIABLE", "END_POINTS")
+	for _, v := range result["services"].(map[string]interface{}) {
+		svc := v.(map[string]interface{})
+		tab.AddRow(svc["name"], svc["available"], svc["uris"])
+	}
+	fmt.Println(tab.String())
 	return nil
 }
 
@@ -218,7 +205,7 @@ func varExists(name string) bool {
 
 func readvar(name string) (string, error) {
 	logger.Debug("readvar: ", name)
-	p := path.Join(globalFlags.Path, globalFlags.StateDir, name) // path to the variable
+	p := path.Join(globalFlags.Path, globalFlags.StateDirName, name) // path to the variable
 	if !fsutil.FileExists(p) {
 		return "", errors.Errorf("file missing: %s", p)
 	} // if the file does not exist, return an error
@@ -232,7 +219,7 @@ func readvar(name string) (string, error) {
 
 func writevar(name, value string) error {
 	logger.Debug("writevar: ", name)
-	p := path.Join(globalFlags.Path, globalFlags.StateDir, name) // path to the variable
+	p := path.Join(globalFlags.Path, globalFlags.StateDirName, name) // path to the variable
 
 	if err := ioutil.WriteFile(p, []byte(value), 0644); err != nil {
 		logger.Error("writevar error: ", err)

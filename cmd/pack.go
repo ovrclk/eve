@@ -27,7 +27,7 @@ type PackFlags struct {
 }
 
 // NewPackCommand creates a new pack command
-func NewPackCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+func NewPack(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	packFlags := &PackFlags{}
 	cmd := &cobra.Command{
 		Use:   "pack",
@@ -56,7 +56,7 @@ func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlag
 	}
 	// Check if env-file is specified and if so, parse it
 	if len(packFlags.EnvFiles) == 0 && varExists("ENV") { // if ENV is set, use it
-		envFile := path.Join(globalFlags.Path, globalFlags.StateDir, "ENV") // path to the ENV file
+		envFile := path.Join(globalFlags.Path, globalFlags.StateDirName, "ENV") // path to the ENV file
 		packFlags.EnvFiles = []string{envFile}
 	}
 
