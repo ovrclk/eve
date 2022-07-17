@@ -16,7 +16,6 @@ import (
 var publishFlags *PublishFlags
 
 type PublishFlags struct {
-	Image    string
 	Version  string
 	SkipSave bool
 }
@@ -25,21 +24,28 @@ func NewPublish(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	publishFlags = &PublishFlags{}
 
 	publishCmd := &cobra.Command{
-		Use:   "publish",
+		Use:   "publish <image>",
 		Short: "Publish and version your image",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPublish(ctx, cancel, publishFlags)
+			image := ""
+			if len(args) > 0 {
+				image = args[0]
+			}
+			return runPublish(ctx, cancel, image, publishFlags)
 		},
 	}
-	publishCmd.Flags().StringVarP(&publishFlags.Image, "image", "i", "", "Image to publish")
-	publishCmd.Flags().StringVarP(&publishFlags.Version, "version", "v", "", "Version of the image")
-	publishCmd.Flags().BoolVar(&publishFlags.SkipSave, "skip-save", false, "Skip saving the version to the state directory")
+	bindPublishFlags(publishFlags, publishCmd)
 	return publishCmd
 }
 
-func runPublish(ctx context.Context, cancel context.CancelFunc, flags *PublishFlags) (err error) {
-	if flags.Image == "" {
-		if flags.Image, err = readvar("IMAGE"); err != nil {
+func bindPublishFlags(flags *PublishFlags, cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&flags.Version, "version", "v", "", "Version of the image")
+	cmd.Flags().BoolVar(&flags.SkipSave, "skip-save", false, "Skip saving the version to the state directory")
+}
+
+func runPublish(ctx context.Context, cancel context.CancelFunc, image string, flags *PublishFlags) (err error) {
+	if image == "" {
+		if image, err = readvar("IMAGE"); err != nil {
 			return errors.Wrap(err, "failed to read IMAGE variable")
 		}
 	}
@@ -54,12 +60,12 @@ func runPublish(ctx context.Context, cancel context.CancelFunc, flags *PublishFl
 	}
 
 	// push the latest version image to the registry
-	if err := dockerPush(ctx, cancel, flags.Image); err != nil {
-		return errors.Wrap(err, "failed to push image: "+flags.Image)
+	if err := dockerPush(ctx, cancel, image); err != nil {
+		return errors.Wrap(err, "failed to push image: "+image)
 	}
 
 	// tag the image with the version tag
-	c := []string{"tag", flags.Image, flags.Image + ":" + flags.Version}
+	c := []string{"tag", image, image + ":" + flags.Version}
 	logger.Debugf("runPublish: running command: docker %v", c)
 	cmd := exec.CommandContext(ctx, "docker", c...)
 	if err := cmd.Run(); err != nil {
@@ -67,8 +73,8 @@ func runPublish(ctx context.Context, cancel context.CancelFunc, flags *PublishFl
 	}
 
 	// push the tagged image to the registry
-	if err := dockerPush(ctx, cancel, flags.Image+":"+flags.Version); err != nil {
-		return errors.Wrap(err, "failed to push image: "+flags.Image+":"+flags.Version)
+	if err := dockerPush(ctx, cancel, image+":"+flags.Version); err != nil {
+		return errors.Wrap(err, "failed to push image: "+image+":"+flags.Version)
 	}
 	return nil
 }

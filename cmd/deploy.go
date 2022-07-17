@@ -7,8 +7,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type DeployFlags struct {
+	DSEQ      string
+	Provider  string
+	NoPack    bool
+	NoUpdate  bool
+	NoPublish bool
+	Image     string
+
+	PackFlags *PackFlags
+	*PublishFlags
+}
+
+var deployFlags *DeployFlags
+
 func NewDeploy(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-	deployCmd := &cobra.Command{
+	deployFlags = &DeployFlags{PackFlags: &PackFlags{}, PublishFlags: &PublishFlags{}}
+	cmd := &cobra.Command{
 		Use:   "deploy",
 		Short: "Deploy your application",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -21,19 +36,42 @@ func NewDeploy(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
-			if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
-				return err
+			if !deployFlags.NoPack {
+				if err := runPack(ctx, cancel, deployFlags.Image, deployFlags.PackFlags); err != nil {
+					return err
+				}
 			}
 
-			if err = runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
-				return err
+			if !deployFlags.NoPublish {
+				if err := runPublish(ctx, cancel, deployFlags.Image, deployFlags.PublishFlags); err != nil {
+					return err
+				}
 			}
+
+			if !deployFlags.NoUpdate {
+				if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
+					return err
+				}
+
+				if err = runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
+					return err
+				}
+			}
+
 			return nil
 		},
 	}
-	deployCmd.AddCommand(NewSendManifestCMD(ctx, cancel), NewUpdateDeploymentCMD(ctx, cancel))
-	return deployCmd
+	cmd.AddCommand(NewSendManifestCMD(ctx, cancel), NewUpdateDeploymentCMD(ctx, cancel))
+	// cmd.Flags().StringVar(&deployFlags.DSEQ, "dseq", "", "The dseq of the application")
+	// cmd.Flags().StringVar(&deployFlags.Provider, "provider", "", "The provider of the application")
+	cmd.Flags().BoolVar(&deployFlags.NoPack, "no-pack", false, "Do not pack the application")
+	cmd.Flags().BoolVar(&deployFlags.NoUpdate, "no-update", false, "Do not update the deployment")
+	cmd.Flags().BoolVar(&deployFlags.NoPublish, "no-publish", false, "Do not publish the deployment")
+	cmd.Flags().StringVar(&deployFlags.Image, "image", "", "The image to use for the deployment")
+
+	bindPackFlags(deployFlags.PackFlags, cmd)
+	bindPublishFlags(deployFlags.PublishFlags, cmd)
+	return cmd
 }
 
 func NewSendManifestCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {

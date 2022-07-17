@@ -23,7 +23,6 @@ type PackFlags struct {
 	Env      []string // Build-time environment variable, in the form 'VAR=VALUE' or 'VAR'.
 	EnvFiles []string // Build-time environment variables file
 	Builder  string   // Builder to use for building the image
-	Image    string   // Name of the image to build
 }
 
 // NewPackCommand creates a new pack command
@@ -33,23 +32,31 @@ func NewPack(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 		Use:   "pack",
 		Short: "Pack your project into a container using buildpacks",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := runPack(ctx, cancel, packFlags); err != nil {
+			image := ""
+			if len(args) > 0 {
+				image = args[0]
+			}
+
+			if err := runPack(ctx, cancel, image, packFlags); err != nil {
 				return err
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringArrayVarP(&packFlags.Env, "env", "e", []string{}, "Build-time environment variable, in the form 'VAR=VALUE' or 'VAR'.\nWhen using latter value-less form, value will be taken from current\n  environment at the time this command is executed.\nThis flag may be specified multiple times and will override\n  individual values defined by --env-file."+stringArrayHelp("env")+"\nNOTE: These are NOT available at image runtime.")
-	cmd.Flags().StringArrayVar(&packFlags.EnvFiles, "env-file", []string{}, "Build-time environment variables file\nOne variable per line, of the form 'VAR=VALUE' or 'VAR'\nWhen using latter value-less form, value will be taken from current\n  environment at the time this command is executed\nNOTE: These are NOT available at image runtime.\"")
-	cmd.Flags().StringVar(&packFlags.Builder, "builder", "", "Builder to use for building the image")
-	cmd.Flags().StringVar(&packFlags.Image, "image", "", "Name of the image to build")
+	bindPackFlags(packFlags, cmd)
 	return cmd
 }
 
-func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlags) (err error) {
+func bindPackFlags(flags *PackFlags, cmd *cobra.Command) {
+	cmd.Flags().StringArrayVarP(&flags.Env, "env", "e", []string{}, "Build-time environment variable, in the form 'VAR=VALUE' or 'VAR'.\nWhen using latter value-less form, value will be taken from current\n  environment at the time this command is executed.\nThis flag may be specified multiple times and will override\n  individual values defined by --env-file."+stringArrayHelp("env")+"\nNOTE: These are NOT available at image runtime.")
+	cmd.Flags().StringArrayVar(&flags.EnvFiles, "env-file", []string{}, "Build-time environment variables file\nOne variable per line, of the form 'VAR=VALUE' or 'VAR'\nWhen using latter value-less form, value will be taken from current\n  environment at the time this command is executed\nNOTE: These are NOT available at image runtime.\"")
+	cmd.Flags().StringVar(&flags.Builder, "builder", "", "Builder to use for building the image")
+}
+
+func runPack(ctx context.Context, cancel context.CancelFunc, image string, packFlags *PackFlags) (err error) {
 	// Check if the image name is provided if not read it from IMAGE file state directory
-	if packFlags.Image == "" {
-		packFlags.Image, err = readvar("IMAGE")
+	if image == "" {
+		image, err = readvar("IMAGE")
 		if err != nil {
 			return errors.Wrap(err, "failed to read IMAGE variable")
 		}
@@ -73,7 +80,7 @@ func runPack(ctx context.Context, cancel context.CancelFunc, packFlags *PackFlag
 	}
 
 	// construct the buildpack command
-	c := []string{"build", packFlags.Image, "--builder", packFlags.Builder}
+	c := []string{"build", image, "--builder", packFlags.Builder}
 	env, err := parseEnv(packFlags.EnvFiles, packFlags.Env)
 	if err != nil {
 		return errors.Wrap(err, "error parsing environment variables")
