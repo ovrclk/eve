@@ -3,7 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"path"
 
+	"github.com/gosuri/eve/logger"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -49,11 +53,22 @@ func NewDeploy(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 			}
 
 			if !deployFlags.NoUpdate {
-				if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
+				//sdlSource := path.Join(globalFlags.Path, "sdl.yml")
+				version, err := readvar("VERSION")
+				if err != nil {
+					return err
+				}
+				sdlSource := path.Join(globalFlags.Path, "sdl.yml")
+				if err := runSDL(ctx, cancel, sdlSource, &SDLFlags{}); err != nil {
+					return err
+				}
+				sdltarget := path.Join(globalFlags.Path, globalFlags.StateDirName, "cache", "sdl."+version+".yml")
+
+				if err = runUpdateDeployment(ctx, cancel, dseq, sdltarget); err != nil {
 					return err
 				}
 
-				if err = runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
+				if err = runProviderSendManifest(ctx, cancel, provider, dseq, sdltarget); err != nil {
 					return err
 				}
 			}
@@ -89,7 +104,7 @@ func NewSendManifestCMD(ctx context.Context, cancel context.CancelFunc) *cobra.C
 				fmt.Println("error: ", err)
 			}
 
-			if err := runProviderSendManifest(ctx, cancel, provider, dseq); err != nil {
+			if err := runProviderSendManifest(ctx, cancel, provider, dseq, ""); err != nil {
 				fmt.Println("error: ", err)
 				return
 			}
@@ -111,11 +126,36 @@ func NewUpdateDeploymentCMD(ctx context.Context, cancel context.CancelFunc) *cob
 				return
 			}
 
-			if err = runUpdateDeployment(ctx, cancel, dseq); err != nil {
+			if err = runUpdateDeployment(ctx, cancel, dseq, ""); err != nil {
 				fmt.Println("error: ", err)
 				return
 			}
 		},
 	}
 	return updateDeploymentCmd
+}
+func runUpdateDeployment(ctx context.Context, cancel context.CancelFunc, dseq string, sdlPath string) error {
+	c := []string{"tx", "deployment", "update", "--dseq", dseq, "--from", "deploy", "-y", sdlPath}
+	logger.Debug("runUpdateDeployment: ", c)
+	cmd := exec.CommandContext(ctx, "akash", c...)
+	out, err := cmd.CombinedOutput()
+	fmt.Println(string(out))
+	if err != nil {
+		logger.Error("runUpdate Deploy error: ", err)
+		return err
+	}
+	return nil
+}
+
+func runProviderSendManifest(ctx context.Context, cancel context.CancelFunc, provider, dseq, sdlPath string) error {
+	c := []string{"provider", "send-manifest", "--provider", provider, "--dseq", dseq, "--from", "deploy", sdlPath}
+	logger.Debug("runProviderSendManifest", c)
+	cmd := exec.CommandContext(ctx, "akash", c...)
+	out, err := cmd.CombinedOutput()
+	fmt.Println(string(out))
+	if err != nil {
+		logger.Error("runProviderSendManifest error: ", err)
+		return errors.Wrapf(err, "Unable to upload manifest to provider %s, for dseq %s", provider, dseq)
+	}
+	return nil
 }

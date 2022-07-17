@@ -51,6 +51,7 @@ func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 		NewDeploy(ctx, cancel),
 		NewPublish(ctx, cancel),
 		NewLogs(ctx, cancel),
+		NewSDL(ctx, cancel),
 	)
 	return rootCmd
 }
@@ -169,32 +170,6 @@ func runStatus(ctx context.Context, cancel context.CancelFunc) (err error) {
 		tab.AddRow(svc["name"], svc["available"], svc["uris"])
 	}
 	fmt.Println(tab.String())
-	return nil
-}
-
-func runUpdateDeployment(ctx context.Context, cancel context.CancelFunc, dseq string) error {
-	c := []string{"tx", "deployment", "update", "--dseq", dseq, "--from", "deploy", "-y", "sdl.yml"}
-	logger.Debug("runUpdateDeployment: ", c)
-	cmd := exec.CommandContext(ctx, "akash", c...)
-	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
-	if err != nil {
-		logger.Error("runUpdate Deploy error: ", err)
-		return err
-	}
-	return nil
-}
-
-func runProviderSendManifest(ctx context.Context, cancel context.CancelFunc, provider string, dseq string) error {
-	c := []string{"provider", "send-manifest", "--provider", provider, "--dseq", dseq, "--from", "deploy", "sdl.yml"}
-	logger.Debug("runProviderSendManifest", c)
-	cmd := exec.CommandContext(ctx, "akash", c...)
-	out, err := cmd.CombinedOutput()
-	fmt.Println(string(out))
-	if err != nil {
-		logger.Error("runProviderSendManifest error: ", err)
-		return errors.Wrapf(err, "Unable to upload manifest to provider %s, for dseq %s", provider, dseq)
-	}
 	return nil
 }
 
