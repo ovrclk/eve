@@ -77,6 +77,6 @@ func runSDL(ctx context.Context, cancel context.CancelFunc, source string, flags
 	if err := ioutil.WriteFile(target, b, 0644); err != nil {
 		return err
 	}
-	logger.Info("SDL: updated %s", p)
+	logger.Infof("SDL: updated %s", p)
 	return nil
 }
