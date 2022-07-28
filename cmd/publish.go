@@ -15,11 +15,13 @@ import (
 
 var publishFlags *PublishFlags
 
+// PublishFlags is the set of flags used by the publish command
 type PublishFlags struct {
 	Version  string
 	SkipSave bool
 }
 
+// PublishCmd is the command to publish the image
 func NewPublish(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	publishFlags = &PublishFlags{}
 
