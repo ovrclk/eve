@@ -47,7 +47,7 @@ Use "eve [command] --help" for more information about a command.
 * **Human-first Design**: Humans are the primary users of Eve CLI. Therefore, it should be designed for humans first.
 * **Composeable**: It should be easy to compose and extend the CLI. A core tenet of the original [UNIX philosophy](https://en.wikipedia.org/wiki/Unix_philosophy) is that small, simple programs with clean interfaces can be combined to build larger systems.
 * **High Singal-to-noise ratio**:  The CLI should output just enough. Not too much or too little.
-* **Delight with Empathy**: The is a programmer's friend, so they should delighful to use. Designing an enjoyable experience starts with empathy.
+* **Delight with Empathy**: The CLI is a programmer's friend, so they should delighful to use. Designing an enjoyable experience starts with empathy.
 
 ## Inputs
 
