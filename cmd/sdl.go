@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/gosuri/eve/logger"
+	"github.com/ovrclk/eve/logger"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

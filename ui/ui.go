@@ -3,8 +3,8 @@ package ui
 import (
 	"io"
 
-	"github.com/gosuri/eve/pkg/strutil/color"
-	"github.com/gosuri/eve/ui/prompt"
+	"github.com/ovrclk/eve/pkg/strutil/color"
+	"github.com/ovrclk/eve/ui/prompt"
 )
 
 // DefaultUI is the default UI for the package

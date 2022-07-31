@@ -1,4 +1,4 @@
-module github.com/gosuri/eve
+module github.com/ovrclk/eve
 
 go 1.18
 

@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/gosuri/eve/pkg/speakeasy"
+	"github.com/ovrclk/eve/pkg/speakeasy"
 )
 
 // DefaultPrompter is the default prompter for the package

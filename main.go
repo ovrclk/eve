@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/gosuri/eve/cmd"
-	"github.com/gosuri/eve/logger"
+	"github.com/ovrclk/eve/cmd"
+	"github.com/ovrclk/eve/logger"
 )
 
 func main() {

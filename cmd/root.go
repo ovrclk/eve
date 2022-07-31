@@ -9,8 +9,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/gosuri/eve/logger"
-	"github.com/gosuri/eve/util/fsutil"
+	"github.com/ovrclk/eve/logger"
+	"github.com/ovrclk/eve/util/fsutil"
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"

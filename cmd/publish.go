@@ -8,7 +8,7 @@ import (
 
 	"time"
 
-	"github.com/gosuri/eve/logger"
+	"github.com/ovrclk/eve/logger"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
