@@ -10,10 +10,12 @@ import (
 	"strings"
 
 	"github.com/gosuri/uitable"
-	"github.com/ovrclk/eve/logger"
-	"github.com/ovrclk/eve/util/fsutil"
+	"github.com/ovrclk/akash/sdkutil"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+
+	"github.com/ovrclk/eve/logger"
+	"github.com/ovrclk/eve/util/fsutil"
 )
 
 var (
@@ -32,6 +34,8 @@ func init() {
 
 // NewDeploy creates a new command that deploys the given application
 func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+	sdkutil.InitSDKConfig()
+
 	rootCmd := &cobra.Command{
 		Use:               "eve",
 		Short:             "Eve is a tool that simplifies deploying applications on Akash",
