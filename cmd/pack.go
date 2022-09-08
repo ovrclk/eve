@@ -4,7 +4,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io/ioutil"
+
+	//"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -136,7 +137,7 @@ func parseEnv(envFiles []string, envVars []string) (map[string]string, error) {
 // parseEnvFile parses the environment variables from the path to the filename
 func parseEnvFile(filename string) (map[string]string, error) {
 	out := make(map[string]string)
-	f, err := ioutil.ReadFile(filepath.Clean(filename))
+	f, err := os.ReadFile(filepath.Clean(filename))
 	if err != nil {
 		return nil, errors.Wrapf(err, "open %s", filename)
 	}

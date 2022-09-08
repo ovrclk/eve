@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -33,7 +32,7 @@ func runSDL(ctx context.Context, cancel context.CancelFunc, source string, flags
 	logger.Debug("runSDL:", "source", source)
 	p := path.Join(globalFlags.Path, source)
 	//b,var b byte[]
-	b, err := ioutil.ReadFile(p)
+	b, err := os.ReadFile(p)
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func runSDL(ctx context.Context, cancel context.CancelFunc, source string, flags
 	}
 
 	target := path.Join(cacheDir, "sdl."+version+".yml")
-	if err := ioutil.WriteFile(target, b, 0644); err != nil {
+	if err := os.WriteFile(target, b, 0644); err != nil {
 		return err
 	}
 	logger.Infof("SDL: updated %s", p)

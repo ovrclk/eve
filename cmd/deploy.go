@@ -89,6 +89,24 @@ func NewDeploy(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	return cmd
 }
 
+func NewDeployCreateCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+	deployCreateCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new deployment",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := runCreateDeployment(ctx, cancel, ""); err != nil {
+				fmt.Println("error: ", err)
+				return
+			}
+		},
+	}
+	return deployCreateCmd
+}
+
+func runCreateDeployment(ctx context.Context, cancel context.CancelFunc, sdlPath string) error {
+	return nil
+}
+
 func NewSendManifestCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	updateManifestCmd := &cobra.Command{
 		Use:   "update-manifest",

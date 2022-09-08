@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
 
+	"github.com/gosuri/uitable"
 	"github.com/ovrclk/eve/logger"
 	"github.com/ovrclk/eve/util/fsutil"
-	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -52,6 +52,7 @@ func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 		NewPublish(ctx, cancel),
 		NewLogs(ctx, cancel),
 		NewSDL(ctx, cancel),
+		NewDeploy2Cmd(ctx, cancel),
 	)
 	return rootCmd
 }
@@ -189,7 +190,7 @@ func readvar(name string) (string, error) {
 		return "", errors.Errorf("file missing: %s", p)
 	} // if the file does not exist, return an error
 
-	b, err := ioutil.ReadFile(p)
+	b, err := os.ReadFile(p)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to read file %s", p)
 	}
@@ -201,7 +202,7 @@ func writevar(name, value string) error {
 	logger.Debug("writevar: ", name)
 	p := path.Join(globalFlags.Path, globalFlags.StateDirName, name) // path to the variable
 
-	if err := ioutil.WriteFile(p, []byte(value), 0644); err != nil {
+	if err := os.WriteFile(p, []byte(value), 0644); err != nil {
 		logger.Error("writevar error: ", err)
 		return errors.Wrapf(err, "failed to write file %s", p)
 	}
