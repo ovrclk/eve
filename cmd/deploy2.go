@@ -9,10 +9,11 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/cosmos/cosmos-sdk/client"
+	sdkclient "github.com/cosmos/cosmos-sdk/client"
 	sdkflags "github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/input"
 	"github.com/cosmos/cosmos-sdk/client/tx"
@@ -23,27 +24,26 @@ import (
 	"github.com/ovrclk/akash/sdkutil"
 	"github.com/ovrclk/akash/sdl"
 	cutils "github.com/ovrclk/akash/x/cert/utils"
-	types "github.com/ovrclk/akash/x/deployment/types/v1beta2"
+	akttypes "github.com/ovrclk/akash/x/deployment/types/v1beta2"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/tendermint/tendermint/rpc/client/http"
+	tmhttpclient "github.com/tendermint/tendermint/rpc/client/http"
 	ttypes "github.com/tendermint/tendermint/types"
 
 	"github.com/ovrclk/eve/logger"
 )
 
 const (
-	FlagDepositorAccount = "depositor-account"
 	// Only way to detect the timeout error.
 	// https://github.com/tendermint/tendermint/blob/46e06c97320bc61c4d98d3018f59d47ec69863c9/rpc/core/mempool.go#L124
-	timeoutErrorMessage        = "timed out waiting for tx to be included in a block"
-	BroadcastBlockRetryTimeout = 300 * time.Second
-	broadcastBlockRetryPeriod  = time.Second
+	timeoutErrorMessage = "timed out waiting for tx to be included in a block"
 
 	// Only way to check for tx not found error.
 	// https://github.com/tendermint/tendermint/blob/46e06c97320bc61c4d98d3018f59d47ec69863c9/rpc/core/tx.go#L31-L33
 	notFoundErrorMessageSuffix = ") not found"
+
+	BroadcastBlockRetryTimeout = 300 * time.Second
+	broadcastBlockRetryPeriod  = time.Second
 )
 
 // NewDeploy2Cmd returns a new instance of the deploy2 command
@@ -58,23 +58,20 @@ func NewDeploy2Cmd(ctx context.Context, cancel context.CancelFunc) *cobra.Comman
 			}
 		},
 	}
-	//sdkflags.AddTxFlagsToCmd(deploy2Cmd)
 	return deploy2Cmd
 }
 
 func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) error {
 	sdkutil.InitSDKConfig()
-	clientCtx, err := client.GetClientTxContext(cmd)
+	clientCtx, err := sdkclient.GetClientTxContext(cmd)
 	if err != nil {
-		logger.Debug("error getting client context", "err", err)
-		return err
+		return errors.Wrap(err, "error getting client context")
 	}
 
 	// read user home directory
 	home, err := os.UserHomeDir()
 	if err != nil {
-		logger.Debug("error reading user home directory", "err", err)
-		return err
+		return errors.Wrap(err, "error getting user home directory")
 	}
 	home = path.Join(home, ".akash")
 
@@ -82,7 +79,7 @@ func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) err
 	node := os.Getenv("AKASH_NODE")
 
 	// create a RPC CLient
-	rpcClient, err := http.New(node, "/websocket")
+	rpcClient, err := tmhttpclient.New(node, "/websocket")
 	if err != nil {
 		logger.Debug("error creating RPC client", "err", err)
 		return err
@@ -98,10 +95,13 @@ func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) err
 		WithOffline(false).
 		WithClient(rpcClient).
 		WithAccountRetriever(authtypes.AccountRetriever{}).
-		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).WithTxConfig(encodingConfig.TxConfig)
+		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
+		WithTxConfig(encodingConfig.TxConfig).
+		WithCodec(encodingConfig.Marshaler).
+		WithSkipConfirmation(true)
 
 	// initiate a new keyring
-	kr, err := client.NewKeyringFromBackend(clientCtx, "test")
+	kr, err := sdkclient.NewKeyringFromBackend(clientCtx, "test")
 	if err != nil {
 		logger.Debug("error creating keyring", "err", err)
 		return err
@@ -109,24 +109,16 @@ func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) err
 
 	clientCtx = clientCtx.WithKeyring(kr)
 	addrSrt := "akash1aqnvsas9plseewyu3nt2rtz6ml4aya4s02qm0q"
-
-	// from, _ := flagSet.GetString(flags.FlagFrom)
-	// fromAddr, fromName, keyType, err := GetFromFields(clientCtx.Keyring, from, clientCtx.GenerateOnly)
-	// if err != nil {
-	// 	return clientCtx, err
-	// }
-	//
-	// clientCtx = clientCtx.WithFrom(from).WithFromAddress(fromAddr).WithFromName(fromName)
 	addr, err := sdk.AccAddressFromBech32(addrSrt)
+
 	if err != nil {
-		logger.Error("error parsing address", "err", err)
+		return errors.Wrap(err, "error getting address")
 	}
 	clientCtx = clientCtx.WithFromAddress(addr).WithFromName("deploy")
 
 	if _, err = cutils.LoadAndQueryCertificateForAccount(cmd.Context(), clientCtx, nil); err != nil {
 		if os.IsNotExist(err) {
-
-			// generate a new certificate
+			// TODO: generate a new certificate
 			err = errors.Errorf("no certificate file found for account %q.\n"+
 				"consider creating it as certificate required to submit manifest", clientCtx.FromAddress.String())
 		}
@@ -136,32 +128,20 @@ func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) err
 
 	sdlManifest, err := sdl.ReadFile(sdlPath)
 	if err != nil {
-		logger.Debug("error reading sdl file: ", err)
-		return err
+		return errors.Wrap(err, "error reading manifest")
 	}
 
 	groups, err := sdlManifest.DeploymentGroups()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error reading groups from the manifest")
 	}
 
-	// create a new deployment ID from unix timestamp
-
-	// create a random number
+	// create a new deployment ID from a random number with unix timestamp as the seed
 	rand.Seed(time.Now().UnixNano())
-	id := types.DeploymentID{
-		Owner: clientCtx.GetFromAddress().String(),
-		DSeq:  rand.Uint64(),
-	}
-
-	// id, err := DeploymentIDFromFlags(cmd.Flags(), WithOwner(clientCtx.FromAddress))
-	// if err != nil {
-	// 	return err
-	// }
-
+	deployID := akttypes.DeploymentID{Owner: clientCtx.GetFromAddress().String(), DSeq: rand.Uint64()}
 	version, err := sdl.Version(sdlManifest)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error reading version from the manifest")
 	}
 
 	depositVal := "5000000uakt"
@@ -171,12 +151,12 @@ func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) err
 		return err
 	}
 
-	msg := &types.MsgCreateDeployment{
-		ID:        id,
+	msg := &akttypes.MsgCreateDeployment{
+		ID:        deployID,
 		Version:   version,
-		Groups:    make([]types.GroupSpec, 0, len(groups)),
+		Groups:    make([]akttypes.GroupSpec, 0, len(groups)),
 		Deposit:   deposit,
-		Depositor: id.Owner,
+		Depositor: deployID.Owner,
 	}
 
 	for _, group := range groups {
@@ -184,17 +164,13 @@ func doDeployCreate(ctx context.Context, cmd *cobra.Command, sdlPath string) err
 	}
 
 	if err := msg.ValidateBasic(); err != nil {
-		return err
+		return errors.Wrap(err, "basic validation failed")
 	}
 
 	return broadcastDeploymentCreateTX(ctx, clientCtx, msg)
-
 }
 
-func broadcastDeploymentCreateTX(ctx context.Context, clientCtx client.Context, msg sdk.Msg) error {
-	from := clientCtx.GetFromAddress()
-	logger.Debug("from address ", from)
-
+func broadcastDeploymentCreateTX(ctx context.Context, clientCtx sdkclient.Context, msg sdk.Msg) error {
 	txf, err := sdkutil.PrepareFactory(clientCtx, newTxFactory(clientCtx))
 	if err != nil {
 		logger.Debug("error preparing factory: ", err)
@@ -204,44 +180,67 @@ func broadcastDeploymentCreateTX(ctx context.Context, clientCtx client.Context, 
 	// Adjust Gas
 	txf, err = sdkutil.AdjustGas(clientCtx, txf, msg)
 	if err != nil {
-		logger.Debug("error adjusting gas: ", err)
-		return err
+		return errors.Wrap(err, "error adjusting gas")
 	}
 
 	// Build Unsigned Transaction
 	txb, err := tx.BuildUnsignedTx(txf, msg)
 	if err != nil {
-		logger.Debug("error building unsigned tx: ", err)
-		return err
+		return errors.Wrap(err, "error building unsigned transaction")
 	}
 
 	ok, err := confirmTx(clientCtx, txb)
 	if !ok || err != nil {
-		return err
+		return errors.Wrap(err, "error confirming transaction")
 	}
 
 	txb.SetFeeGranter(clientCtx.GetFeeGranterAddress())
 	if err = tx.Sign(txf, clientCtx.GetFromName(), txb, true); err != nil {
-		logger.Debug("error signing tx: ", err)
-		return err
+		return errors.Wrap(err, "error signing transaction")
 	}
 
 	txBytes, err := clientCtx.TxConfig.TxEncoder()(txb.GetTx())
 	if err != nil {
-		logger.Debug("error encoding tx: ", err)
-		return err
+		return errors.Wrap(err, "error encoding transaction")
 	}
 
 	// Broadcast to a Tendermint node
 	res, err := doBroadcast(ctx, clientCtx, BroadcastBlockRetryTimeout, txBytes)
 	if err != nil {
-		logger.Debug("error broadcasting tx: ", err)
-		return err
+		return errors.Wrap(err, "error broadcasting transaction")
 	}
 	return clientCtx.PrintProto(res)
 }
 
-func doBroadcast(ctx context.Context, cctx client.Context, timeout time.Duration, txb ttypes.Tx) (*sdk.TxResponse, error) {
+func newTxFactory(clientCtx sdkclient.Context) tx.Factory {
+	gasStr := os.Getenv("AKASH_GAS")
+	gastSetting, err := sdkflags.ParseGasSetting(gasStr)
+	if err != nil {
+		logger.Debug("error parsing gas: ", err)
+	}
+
+	gasAdjustStr := os.Getenv("AKASH_GAS_ADJUSTMENT")
+	gasAdjustment, err := strconv.ParseFloat(gasAdjustStr, 64)
+	if err != nil {
+		logger.Debug("error parsing gas adjustment: ", err)
+	}
+
+	gasPricesStr := os.Getenv("AKASH_GAS_PRICES")
+
+	f := tx.Factory{}
+	return f.
+		WithTxConfig(clientCtx.TxConfig).
+		WithAccountRetriever(clientCtx.AccountRetriever).
+		WithKeybase(clientCtx.Keyring).
+		WithChainID(clientCtx.ChainID).
+		WithSimulateAndExecute(gastSetting.Simulate).
+		WithGas(gastSetting.Gas).
+		WithGasAdjustment(gasAdjustment).
+		WithAccountRetriever(clientCtx.AccountRetriever).
+		WithGasPrices(gasPricesStr)
+}
+
+func doBroadcast(ctx context.Context, cctx sdkclient.Context, timeout time.Duration, txb ttypes.Tx) (*sdk.TxResponse, error) {
 	switch cctx.BroadcastMode {
 	case sdkflags.BroadcastSync:
 		return cctx.BroadcastTxSync(txb)
@@ -292,7 +291,7 @@ func doBroadcast(ctx context.Context, cctx client.Context, timeout time.Duration
 	return cres, lctx.Err()
 }
 
-func confirmTx(ctx client.Context, txb client.TxBuilder) (bool, error) {
+func confirmTx(ctx sdkclient.Context, txb sdkclient.TxBuilder) (bool, error) {
 	if ctx.SkipConfirm {
 		return true, nil
 	}
@@ -313,78 +312,4 @@ func confirmTx(ctx client.Context, txb client.TxBuilder) (bool, error) {
 	}
 
 	return true, nil
-}
-
-func newTxFactory(clientCtx client.Context) tx.Factory {
-	//gasSetting := sdkflags.GasSetting{Simulate: false, Gas: sdkflags.DefaultGasLimit}
-
-	f := tx.Factory{}
-	f = f.
-		WithTxConfig(clientCtx.TxConfig).
-		WithAccountRetriever(clientCtx.AccountRetriever).
-		WithKeybase(clientCtx.Keyring).
-		WithChainID(clientCtx.ChainID).
-		WithGas(sdkflags.DefaultGasLimit).WithAccountRetriever(clientCtx.AccountRetriever)
-	return f
-}
-
-type MarketOptions struct {
-	Owner    sdk.AccAddress
-	Provider sdk.AccAddress
-}
-
-type MarketOption func(*MarketOptions)
-
-func WithOwner(val sdk.AccAddress) MarketOption {
-	return func(opt *MarketOptions) {
-		opt.Owner = val
-	}
-}
-
-// DeploymentIDFromFlags returns DeploymentID with given flags, owner and error if occurred
-func DeploymentIDFromFlags(flags *pflag.FlagSet, opts ...MarketOption) (types.DeploymentID, error) {
-	var id types.DeploymentID
-	opt := &MarketOptions{}
-
-	for _, o := range opts {
-		o(opt)
-	}
-
-	var owner string
-	if flag := flags.Lookup("owner"); flag != nil {
-		owner = flag.Value.String()
-	}
-
-	// if --owner flag was explicitly provided, use that.
-	var err error
-	if owner != "" {
-		opt.Owner, err = sdk.AccAddressFromBech32(owner)
-		if err != nil {
-			return id, err
-		}
-	}
-
-	id.Owner = opt.Owner.String()
-
-	if id.DSeq, err = flags.GetUint64("dseq"); err != nil {
-		return id, err
-	}
-	return id, nil
-}
-
-// DepositorFromFlags returns the depositor account if one was specified in flags,
-// otherwise it returns the owner's account.
-func DepositorFromFlags(flags *pflag.FlagSet, owner string) (string, error) {
-	depositorAcc, err := flags.GetString(FlagDepositorAccount)
-	if err != nil {
-		return "", err
-	}
-
-	// if no depositor is specified, owner is the default depositor
-	if strings.TrimSpace(depositorAcc) == "" {
-		return owner, nil
-	}
-
-	_, err = sdk.AccAddressFromBech32(depositorAcc)
-	return depositorAcc, err
 }

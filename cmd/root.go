@@ -12,6 +12,7 @@ import (
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/ovrclk/eve/logger"
 	"github.com/ovrclk/eve/util/fsutil"
@@ -29,11 +30,26 @@ type GlobalFlags struct {
 
 func init() {
 	globalFlags = &GlobalFlags{}
+	viper.SetConfigName(".eve")
+	viper.SetConfigType("yaml") // required if the config file does not have the extension in the name
+
+	// path to look for the config file in
+	viper.AddConfigPath(".")
+	viper.AddConfigPath(os.ExpandEnv("$HOME"))
+	viper.AddConfigPath("/etc/eve")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			logger.Debug("init: No config file found")
+			// Config file not found; ignore error
+		} else {
+			// Config file was found but another error was produced
+			panic(fmt.Errorf("fatal error reading config file: %s", err))
+		}
+	}
 }
 
 // NewDeploy creates a new command that deploys the given application
 func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-
 	rootCmd := &cobra.Command{
 		Use:               "eve",
 		Short:             "Eve is a tool that simplifies deploying applications on Akash",
