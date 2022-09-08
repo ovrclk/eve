@@ -60,7 +60,10 @@ func doDeployCreate(cmd *cobra.Command, sdlPath string) error {
 	}
 	home = path.Join(home, ".akash")
 
-	clientCtx = clientCtx.WithHomeDir(home).WithViper("akash").WithChainID("akashnet-2").WithFromName("akash1aqnvsas9plseewyu3nt2rtz6ml4aya4s02qm0q").WithKeyring(kr)
+	addr, _ := sdk.AccAddressFromBech32("akash1aqnvsas9plseewyu3nt2rtz6ml4aya4s02qm0q")
+	clientCtx = clientCtx.WithHomeDir(home).WithViper("akash").WithChainID("akashnet-2").WithFromAddress(addr).WithKeyring(kr)
+
+	logger.Debugf("client context: %+v", clientCtx)
 
 	if _, err = cutils.LoadAndQueryCertificateForAccount(cmd.Context(), clientCtx, nil); err != nil {
 		if os.IsNotExist(err) {
