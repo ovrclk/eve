@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/gosuri/uitable"
-	"github.com/ovrclk/akash/sdkutil"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -34,7 +33,6 @@ func init() {
 
 // NewDeploy creates a new command that deploys the given application
 func NewRootCMD(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
-	sdkutil.InitSDKConfig()
 
 	rootCmd := &cobra.Command{
 		Use:               "eve",
