@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/cosmos/cosmos-sdk/client"
@@ -45,13 +46,21 @@ func doDeployCreate(cmd *cobra.Command, sdlPath string) error {
 	}
 
 	// initiate a new keyring
-	kr, err := client.NewKeyringFromBackend(clientCtx, "os")
+	kr, err := client.NewKeyringFromBackend(clientCtx, "test")
 	if err != nil {
 		logger.Debug("error creating keyring", "err", err)
 		return err
 	}
 
-	clientCtx = clientCtx.WithHomeDir("/Users/gosuri/.akash").WithViper("akash").WithChainID("akashnet-2").WithFromName("deploy").WithKeyring(kr)
+	// read user home directory
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logger.Debug("error reading user home directory", "err", err)
+		return err
+	}
+	home = path.Join(home, ".akash")
+
+	clientCtx = clientCtx.WithHomeDir(home).WithViper("akash").WithChainID("akashnet-2").WithFromName("akash1aqnvsas9plseewyu3nt2rtz6ml4aya4s02qm0q").WithKeyring(kr)
 
 	if _, err = cutils.LoadAndQueryCertificateForAccount(cmd.Context(), clientCtx, nil); err != nil {
 		if os.IsNotExist(err) {
