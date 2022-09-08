@@ -15,10 +15,11 @@ import (
 	"github.com/ovrclk/akash/sdl"
 	cutils "github.com/ovrclk/akash/x/cert/utils"
 	types "github.com/ovrclk/akash/x/deployment/types/v1beta2"
-	"github.com/ovrclk/eve/logger"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/ovrclk/eve/logger"
 )
 
 const FlagDepositorAccount = "depositor-account"
@@ -28,6 +29,7 @@ func NewDeploy2Cmd(ctx context.Context, cancel context.CancelFunc) *cobra.Comman
 	deploy2Cmd := &cobra.Command{
 		Use:   "deploy2",
 		Short: "Deploy a new application",
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := doDeployCreate(cmd, args[0]); err != nil {
 				log.Fatalf("error: %v", err)
@@ -45,13 +47,6 @@ func doDeployCreate(cmd *cobra.Command, sdlPath string) error {
 		return err
 	}
 
-	// initiate a new keyring
-	kr, err := client.NewKeyringFromBackend(clientCtx, "test")
-	if err != nil {
-		logger.Debug("error creating keyring", "err", err)
-		return err
-	}
-
 	// read user home directory
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -60,10 +55,29 @@ func doDeployCreate(cmd *cobra.Command, sdlPath string) error {
 	}
 	home = path.Join(home, ".akash")
 
-	addr, _ := sdk.AccAddressFromBech32("akash1aqnvsas9plseewyu3nt2rtz6ml4aya4s02qm0q")
-	clientCtx = clientCtx.WithHomeDir(home).WithViper("akash").WithChainID("akashnet-2").WithFromAddress(addr).WithKeyring(kr)
+	clientCtx = clientCtx.WithHomeDir(home).WithViper("akash").WithChainID("akashnet-2").WithKeyringDir(home)
 
-	logger.Debugf("client context: %+v", clientCtx)
+	// initiate a new keyring
+	kr, err := client.NewKeyringFromBackend(clientCtx, "test")
+	if err != nil {
+		logger.Debug("error creating keyring", "err", err)
+		return err
+	}
+
+	clientCtx = clientCtx.WithKeyring(kr)
+
+	// from, _ := flagSet.GetString(flags.FlagFrom)
+	// fromAddr, fromName, keyType, err := GetFromFields(clientCtx.Keyring, from, clientCtx.GenerateOnly)
+	// if err != nil {
+	// 	return clientCtx, err
+	// }
+	//
+	// clientCtx = clientCtx.WithFrom(from).WithFromAddress(fromAddr).WithFromName(fromName)
+	// addr, err := sdk.AccAddressFromBech32("akash1d2tupalhrk59ygc2ruggfyd3y5pz82x25dt6vy")
+	// if err != nil {
+	// 	logger.Error("error parsing address", "err", err)
+	// }
+	// clientCtx = clientCtx.WithFromAddress(addr)
 
 	if _, err = cutils.LoadAndQueryCertificateForAccount(cmd.Context(), clientCtx, nil); err != nil {
 		if os.IsNotExist(err) {
